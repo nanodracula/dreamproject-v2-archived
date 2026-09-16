@@ -6,10 +6,6 @@ deno = "2"
 
 # === 1. IOS
 
-[tasks."ios:build"]
-description = "Build DreamApp for iOS Simulator."
-run = "bash tools/run-ios.sh build"
-
 [tasks."ios:run-simulator"]
 description = "Build and launch DreamApp in an iOS simulator using Device Hub"
 run = "bash tools/run-ios.sh run"
@@ -21,6 +17,10 @@ run = "bash tools/run-ios.sh run-device"
 [tasks."ios:release"]
 description = "Build and launch an optimized Release DreamApp on the connected iPhone"
 run = "bash tools/run-ios.sh run-device --release"
+
+[tasks."ios:build"]
+description = "Build DreamApp for iOS Simulator."
+run = "bash tools/run-ios.sh build"
 
 [tasks."ios:test"]
 description = "Test DreamApp on an explicit iOS Simulator destination"
