@@ -3,6 +3,14 @@ import SwiftUI
 /// Screens reachable from the settings index.
 enum SettingsRoute: Hashable {
     case general, interface, learning(languageCode: String), languages, sync, dev, terminal
+
+    /// The sections offered straight from the navigation bar, with the label
+    /// each shortcut shows.
+    static let shortcuts: [(route: SettingsRoute, title: LocalizedStringResource, symbol: String)] = [
+        (.general, LocalizedStringResource("itemsGeneral", table: "Settings"), "gearshape"),
+        (.languages, LocalizedStringResource("languagesTitle", table: "Settings"), "globe"),
+        (.interface, LocalizedStringResource("itemsInterface", table: "Settings"), "paintbrush"),
+    ]
 }
 
 /// The settings index: a native inset-grouped list. In dark mode the system

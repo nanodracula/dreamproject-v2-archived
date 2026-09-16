@@ -3,7 +3,7 @@ import SwiftUI
 /// A floating Liquid Glass bar whose selection stretches toward its destination.
 struct MainNavigationOriginal<Item: MainNavigationItem>: MainNavigationBar {
     let items: [Item]
-    @Binding var selection: Item
+    @Binding var selection: Item.ID
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var position: PillPosition
@@ -13,14 +13,10 @@ struct MainNavigationOriginal<Item: MainNavigationItem>: MainNavigationBar {
         MainNavigationMetrics(height: Layout.height, sideInset: 32)
     }
 
-    init(
-        items: [Item],
-        selection: Binding<Item>,
-        contextActions _: (Item) -> [MainNavigationAction] = { _ in [] }
-    ) {
+    init(items: [Item], selection: Binding<Item.ID>) {
         self.items = items
         _selection = selection
-        let index = CGFloat(items.firstIndex(of: selection.wrappedValue) ?? 0)
+        let index = CGFloat(items.firstIndex { $0.id == selection.wrappedValue } ?? 0)
         _position = State(initialValue: PillPosition(start: index, end: index + 1))
     }
 
@@ -47,7 +43,7 @@ struct MainNavigationOriginal<Item: MainNavigationItem>: MainNavigationBar {
         .frame(height: Self.metrics.height)
         .glassEffect(.regular.interactive(!reduceMotion), in: .capsule)
         .onChange(of: selection) { _, newValue in
-            let index = CGFloat(items.firstIndex(of: newValue) ?? 0)
+            let index = CGFloat(items.firstIndex { $0.id == newValue } ?? 0)
             movingForward = index > position.center
             position = PillPosition(start: index, end: index + 1)
         }
@@ -64,7 +60,7 @@ struct MainNavigationOriginal<Item: MainNavigationItem>: MainNavigationBar {
                     .allowsHitTesting(false)
             }
             HStack(spacing: 0) {
-                ForEach(Array(items.enumerated()), id: \.element) { index, item in
+                ForEach(Array(items.enumerated()), id: \.element.id) { index, item in
                     slot(for: item, fill: max(0, 1 - abs(position.center - CGFloat(index))))
                 }
             }
@@ -73,10 +69,10 @@ struct MainNavigationOriginal<Item: MainNavigationItem>: MainNavigationBar {
     }
 
     private func slot(for item: Item, fill: CGFloat) -> some View {
-        let isSelected = item == selection
+        let isSelected = item.id == selection
         let glyphFill = reduceMotion ? (isSelected ? 1.0 : 0.0) : Double(fill)
         return Button {
-            selection = item
+            selection = item.id
         } label: {
             ZStack {
                 symbol(item.symbol, color: Palette.inactiveGlyph)

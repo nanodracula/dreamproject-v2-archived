@@ -1,32 +1,66 @@
 import SwiftUI
 import UIKit
 
-/// A fixed set of tabs driven by an external navigation bar. UIKit retains each
-/// hosting controller and manages appearance callbacks for the selected screen.
-struct ScreenTransitionView<Item: Hashable, Content: View>: UIViewControllerRepresentable {
-    let items: [Item]
+/// One root destination, declared the way `Tab` is: identity, label, and
+/// content in one place. The bar reads the label; the container hosts the
+/// content.
+nonisolated struct Screen<Item: Hashable>: MainNavigationItem {
+    let id: Item
+    let title: LocalizedStringResource
+    let symbol: String
+    let contextActions: [MainNavigationAction]
+    /// Each screen lives in its own hosting controller, so erasure costs
+    /// nothing here.
+    let content: AnyView
+
+    @MainActor
+    init(
+        _ id: Item,
+        _ title: LocalizedStringResource,
+        symbol: String,
+        actions: [MainNavigationAction] = [],
+        @ViewBuilder content: () -> some View
+    ) {
+        self.id = id
+        self.title = title
+        self.symbol = symbol
+        self.contextActions = actions
+        self.content = AnyView(content())
+    }
+
+    var selectedSymbol: String { symbol + ".fill" }
+}
+
+/// A fixed set of screens driven by an external navigation bar. UIKit retains
+/// each hosting controller and manages appearance callbacks for the selected
+/// screen.
+struct ScreenTransitionView<Item: Hashable>: UIViewControllerRepresentable {
+    let screens: [Screen<Item>]
     let selection: Item
-    @ViewBuilder let content: (Item) -> Content
 
     func makeCoordinator() -> Coordinator { Coordinator() }
 
     func makeUIViewController(context: Context) -> UITabBarController {
         let controller = UITabBarController()
         controller.setTabBarHidden(true, animated: false)
-        controller.viewControllers = items.map { item in
-            UIHostingController(rootView: content(item))
+        controller.viewControllers = screens.map { screen in
+            UIHostingController(rootView: screen.content)
         }
-        controller.selectedIndex = items.firstIndex(of: selection) ?? 0
+        controller.selectedIndex = selectedIndex
         controller.delegate = context.coordinator
         return controller
     }
 
     func updateUIViewController(_ controller: UITabBarController, context: Context) {
-        for (item, child) in zip(items, controller.viewControllers ?? []) {
-            (child as? UIHostingController<Content>)?.rootView = content(item)
+        for (screen, child) in zip(screens, controller.viewControllers ?? []) {
+            (child as? UIHostingController<AnyView>)?.rootView = screen.content
         }
         context.coordinator.reduceMotion = context.environment.accessibilityReduceMotion
-        context.coordinator.select(items.firstIndex(of: selection) ?? 0, in: controller)
+        context.coordinator.select(selectedIndex, in: controller)
+    }
+
+    private var selectedIndex: Int {
+        screens.firstIndex { $0.id == selection } ?? 0
     }
 
     final class Coordinator: NSObject, UITabBarControllerDelegate {
