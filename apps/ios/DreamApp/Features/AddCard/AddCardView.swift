@@ -5,7 +5,7 @@ import SwiftUI
 /// task hang off its state, so leaving the tab winds both down through
 /// ordinary view lifecycle.
 struct AddCardView: View {
-    @Environment(AppDependencies.self) private var dependencies
+    private let pronunciation: Pronunciation
     @State private var model: AddCardModel
     @FocusState private var isInputFocused: Bool
     /// The space a sheet can take: this view plus the bottom safe area.
@@ -18,6 +18,7 @@ struct AddCardView: View {
         self.init(
             dependencies: dependencies,
             generation: CardTitleGeneration(supabase: dependencies.supabase),
+            pronunciation: dependencies.pronunciation,
             onSelection: onSelection
         )
     }
@@ -26,9 +27,11 @@ struct AddCardView: View {
     init(
         dependencies: AppDependencies,
         generation: any CardTitleGenerating,
+        pronunciation: Pronunciation,
         draft: String = "",
         onSelection: @escaping (AddCardSelection) -> Void
     ) {
+        self.pronunciation = pronunciation
         let model = AddCardModel(
             settings: dependencies.settings,
             generation: generation,
@@ -70,7 +73,7 @@ struct AddCardView: View {
         .sheet(item: $model.pickerSession) { session in
             TranslationOptionsSheet(
                 session: session,
-                pronunciation: dependencies.pronunciation,
+                pronunciation: pronunciation,
                 maxHeight: presentationHeight * 0.9
             ) { variant in
                 model.confirm(variant, in: session)
@@ -293,10 +296,16 @@ private struct AddCardPreview: View {
     var input = ""
     let generation: any CardTitleGenerating
     @State private var dependencies = AppDependencies(database: try! AppDatabase.openInMemory())
+    @State private var pronunciation = Pronunciation.preview()
 
     var body: some View {
         NavigationStack {
-            AddCardView(dependencies: dependencies, generation: generation, draft: input) { selection in
+            AddCardView(
+                dependencies: dependencies,
+                generation: generation,
+                pronunciation: pronunciation,
+                draft: input
+            ) { selection in
                 print("[add-card] chosen title", selection.variant.title)
             }
         }
