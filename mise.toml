@@ -10,7 +10,7 @@ deno = "2"
 description = "Build DreamApp for iOS Simulator."
 run = "bash tools/run-ios.sh build"
 
-[tasks."ios:run"]
+[tasks."ios:run-simulator"]
 description = "Build and launch DreamApp in an iOS simulator using Device Hub"
 run = "bash tools/run-ios.sh run"
 
