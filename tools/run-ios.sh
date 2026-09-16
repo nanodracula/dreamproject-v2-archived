@@ -37,15 +37,15 @@ case "$action" in
     ;;
 
   run)
-    simulator="${IOS_SIMULATOR_ID:-iPhone 17 Pro}"
-    destination="platform=iOS Simulator,name=iPhone 17 Pro"
+    simulator="${IOS_SIMULATOR_ID:-iPhone 18 Pro}"
+    destination="platform=iOS Simulator,name=iPhone 18 Pro,OS=27.0"
     if [ -n "${IOS_SIMULATOR_ID:-}" ]; then
       destination="platform=iOS Simulator,id=$IOS_SIMULATOR_ID"
     fi
     derived_data="$HOME/Library/Developer/Xcode/DerivedData/DreamApp-Run-$configuration"
 
     xcrun simctl bootstatus "$simulator" -b
-    open -a Simulator
+    open -a /Applications/Xcode.app/Contents/Applications/DeviceHub.app
     xcode -destination "$destination" \
       -derivedDataPath "$derived_data" build
 

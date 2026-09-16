@@ -24,7 +24,7 @@ for tool in swift xcodebuild simctl xed; do
   xcrun --find "$tool" >/dev/null 2>&1 || fail "Xcode tool $tool is unavailable. Open Xcode to finish setup and check xcode-select -p."
 done
 
-runtimes=$(xcrun simctl list runtimes) || fail 'Cannot query Simulator services. Open Xcode/Simulator and retry outside any restrictive sandbox.'
+runtimes=$(xcrun simctl list runtimes) || fail 'Cannot query Simulator services. Open Xcode/Device Hub and retry outside any restrictive sandbox.'
 ios_runtimes=$(printf '%s\n' "$runtimes" | awk '/^iOS / && /com\.apple\.CoreSimulator\.SimRuntime\.iOS-/ && !/[Uu]navailable/ { print }')
 [ -n "$ios_runtimes" ] || fail 'No available iOS Simulator runtime. Install one in Xcode Settings > Components, then rerun bootstrap.'
 
