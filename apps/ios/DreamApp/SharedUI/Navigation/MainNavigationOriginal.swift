@@ -132,7 +132,7 @@ final class MainNavigationOriginal: UIView, MainNavigationBar {
 
     private func step(_ delta: CGFloat) {
         // Small integration steps keep the same spring stable at either 60 or 120 Hz.
-        var remaining = min(delta, 1 / 15)
+        var remaining = delta
         while remaining > 0 {
             let step = min(remaining, 1 / 240)
             leading.step(step)
@@ -165,9 +165,9 @@ private struct EdgeSpring {
     var value: CGFloat
     private var velocity: CGFloat = 0
     private var target: CGFloat
-    private var mass: CGFloat = 0.9
-    private var stiffness: CGFloat = 240
-    private var damping: CGFloat = 28
+    private let mass: CGFloat = 0.7
+    private var stiffness: CGFloat = 560
+    private var damping: CGFloat = 35
 
     init(value: CGFloat) { self.value = value; target = value }
 
@@ -175,9 +175,9 @@ private struct EdgeSpring {
 
     mutating func retarget(_ target: CGFloat, fast: Bool) {
         self.target = target
-        mass = fast ? 0.7 : 0.9
-        stiffness = fast ? 400 : 240
-        damping = fast ? 30 : 28
+        // Faster, closely matched edges keep the stretch subtle.
+        stiffness = fast ? 650 : 560
+        damping = fast ? 36 : 35
         // Keep both the current position and velocity when direction changes.
     }
 

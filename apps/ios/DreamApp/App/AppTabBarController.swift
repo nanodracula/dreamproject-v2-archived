@@ -103,6 +103,8 @@ final class AppTabBarController: UITabBarController, UITabBarControllerDelegate 
                           to toVC: UIViewController) -> (any UIViewControllerAnimatedTransitioning)? {
         isTransitioning = true
         return ScreenTransitionAnimator(duration: UIAccessibility.isReduceMotionEnabled ? 0 : 0.14) { [weak self] in
+            // Let UIKit finish its containment and appearance callbacks before
+            // applying the latest tap. Never expose a half-finished fade.
             DispatchQueue.main.async { [weak self] in
                 self?.isTransitioning = false
                 self?.applyRequestedSelection()
@@ -153,13 +155,12 @@ private final class ScreenTransitionAnimator: NSObject, UIViewControllerAnimated
         UIView.performWithoutAnimation {
             container.addSubview(outgoing)
             incoming.frame = transitionContext.finalFrame(for: destination)
-            // Attach behind the outgoing screen so safe areas and navigation
-            // chrome settle in their actual container before the fade begins.
+            // Settle the hosting view's safe area and navigation chrome while
+            // it is covered by the outgoing screen, before taking snapshots.
             container.insertSubview(incoming, belowSubview: outgoing)
+            incoming.setNeedsLayout()
             container.setNeedsLayout()
             container.layoutIfNeeded()
-            incoming.setNeedsLayout()
-            incoming.layoutIfNeeded()
             incoming.isHidden = true
         }
 
@@ -175,8 +176,6 @@ private final class ScreenTransitionAnimator: NSObject, UIViewControllerAnimated
             } else {
                 incoming.removeFromSuperview()
             }
-            // UIKit's show/hide transition leaves the source hidden. Restore
-            // both retained views so they are ready for subsequent selections.
             outgoing.isHidden = false
             incoming.isHidden = false
             transitionContext.completeTransition(completed)

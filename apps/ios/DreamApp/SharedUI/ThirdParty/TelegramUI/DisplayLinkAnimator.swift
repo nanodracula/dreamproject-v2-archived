@@ -1,33 +1,14 @@
 // Telegram-iOS source, GPL-2.0-or-later.
 // Upstream commit: 6ad963e5b62d354da79040f388ae2b9132fb17b8
-// Port: UIKit lifecycle callbacks and animator deinit explicitly use the main actor.
+// Port: main-actor lifecycle, per-subscriber elapsed timing, and active frame-rate requests.
 import Foundation
 import UIKit
-import Darwin
 
 public protocol SharedDisplayLinkDriverLink: AnyObject {
     var isPaused: Bool { get set }
-    
+
     func invalidate()
 }
-
-private let isIpad: Bool = {
-    var systemInfo = utsname()
-    uname(&systemInfo)
-    let modelCode = withUnsafePointer(to: &systemInfo.machine) {
-        $0.withMemoryRebound(to: CChar.self, capacity: 1) {
-            ptr in String.init(validatingUTF8: ptr)
-        }
-    }
-    
-    if let modelCode {
-        if modelCode.lowercased().hasPrefix("ipad") {
-            return true
-        }
-    }
-    
-    return false
-}()
 
 public final class SharedDisplayLinkDriver {
     public enum FramesPerSecond: Comparable {
@@ -58,9 +39,12 @@ public final class SharedDisplayLinkDriver {
         public let framesPerSecond: FramesPerSecond
         let update: (CGFloat) -> Void
         var isValid: Bool = true
+        fileprivate var previousTargetTimestamp: CFTimeInterval?
+        fileprivate var elapsedDuration: CFTimeInterval = 0
         public var isPaused: Bool = false {
             didSet {
                 if self.isPaused != oldValue {
+                    self.resetTiming()
                     self.driver.requestUpdate()
                 }
             }
@@ -72,17 +56,22 @@ public final class SharedDisplayLinkDriver {
             self.update = update
         }
         
+        fileprivate func resetTiming() {
+            previousTargetTimestamp = nil
+            elapsedDuration = 0
+        }
+
         public func invalidate() {
             self.isValid = false
+            self.resetTiming()
+            self.driver.requestUpdate()
         }
     }
     
     private final class RequestContext {
         weak var link: LinkImpl?
         let framesPerSecond: FramesPerSecond
-        
-        var lastDuration: Double = 0.0
-        
+
         init(link: LinkImpl, framesPerSecond: FramesPerSecond) {
             self.link = link
             self.framesPerSecond = framesPerSecond
@@ -155,17 +144,11 @@ public final class SharedDisplayLinkDriver {
         var hasActiveItems = false
         var maxFramesPerSecond: FramesPerSecond = .fps(30)
         for request in self.requests {
-            if let link = request.link {
-                if link.framesPerSecond > maxFramesPerSecond {
-                    maxFramesPerSecond = link.framesPerSecond
-                }
-                if link.isValid && !link.isPaused {
-                    hasActiveItems = true
-                    break
-                }
-            }
+            guard let link = request.link, link.isValid, !link.isPaused else { continue }
+            hasActiveItems = true
+            maxFramesPerSecond = max(maxFramesPerSecond, link.framesPerSecond)
         }
-        
+
         if self.isInForeground && hasActiveItems {
             let displayLink: CADisplayLink
             if let current = self.displayLink {
@@ -175,33 +158,23 @@ public final class SharedDisplayLinkDriver {
                 self.displayLink = displayLink
                 displayLink.add(to: .main, forMode: .common)
             }
-            if #available(iOS 15.0, *) {
-                let maxFps = Float(UIScreen.main.maximumFramesPerSecond)
-                if maxFps > 61.0 {
-                    var frameRateRange: CAFrameRateRange
-                    switch maxFramesPerSecond {
-                    case let .fps(fps):
-                        if fps > 60 {
-                            frameRateRange = CAFrameRateRange(minimum: 30.0, maximum: 120.0, preferred: 120.0)
-                        } else {
-                            frameRateRange = .default
-                        }
-                    case .max:
-                        frameRateRange = CAFrameRateRange(minimum: 30.0, maximum: 120.0, preferred: 120.0)
-                    }
-                    
-                    if isIpad {
-                        frameRateRange = CAFrameRateRange(minimum: 30.0, maximum: 120.0, preferred: 120.0)
-                    }
-                    
-                    if displayLink.preferredFrameRateRange != frameRateRange {
-                        displayLink.preferredFrameRateRange = frameRateRange
-                        print("SharedDisplayLinkDriver: switch to \(frameRateRange)")
-                    }
-                }
+            let maximumFPS = Float(UIScreen.main.maximumFramesPerSecond)
+            let preferredFPS: Float
+            switch maxFramesPerSecond {
+            case .fps(let fps): preferredFPS = min(Float(fps), maximumFPS)
+            case .max: preferredFPS = maximumFPS
+            }
+            let frameRateRange = CAFrameRateRange(
+                minimum: min(60, preferredFPS), maximum: preferredFPS, preferred: preferredFPS
+            )
+            if displayLink.preferredFrameRateRange != frameRateRange {
+                displayLink.preferredFrameRateRange = frameRateRange
             }
             displayLink.isPaused = false
         } else {
+            // Backgrounding and an idle driver must not become animation time
+            // when subscribers resume.
+            for request in self.requests { request.link?.resetTiming() }
             if let displayLink = self.displayLink {
                 self.displayLink = nil
                 displayLink.invalidate()
@@ -212,32 +185,30 @@ public final class SharedDisplayLinkDriver {
     @objc private func displayLinkEvent(displayLink: CADisplayLink) {
         self.isProcessingEvent = true
         
-        let duration = displayLink.targetTimestamp - displayLink.timestamp
+        let targetTimestamp = displayLink.targetTimestamp
         
         var removeIndices: [Int]?
         loop: for i in 0 ..< self.requests.count {
             let request = self.requests[i]
             if let link = request.link, link.isValid {
                 if !link.isPaused {
-                    var itemDuration = duration
-                    
+                    let previous = link.previousTargetTimestamp ?? displayLink.timestamp
+                    link.previousTargetTimestamp = targetTimestamp
+                    link.elapsedDuration += max(0, targetTimestamp - previous)
+
                     switch request.framesPerSecond {
-                    case let .fps(value):
-                        let secondsPerFrame = 1.0 / CGFloat(value)
-                        itemDuration = secondsPerFrame
-                        request.lastDuration += duration
-                        if request.lastDuration >= secondsPerFrame * 0.95 {
-                            //print("item \(link) accepting cycle: \(request.lastDuration - duration) + \(duration) = \(request.lastDuration) >= \(secondsPerFrame)")
-                        } else {
-                            //print("item \(link) skipping cycle: \(request.lastDuration - duration) + \(duration) < \(secondsPerFrame)")
-                            continue loop
-                        }
+                    case .fps(let value):
+                        let secondsPerFrame = 1.0 / Double(value)
+                        guard link.elapsedDuration >= secondsPerFrame * 0.95 else { continue loop }
                     case .max:
                         break
                     }
-                    
-                    request.lastDuration = 0.0
-                    link.update(itemDuration)
+
+                    // Include skipped callbacks and throttled frames, not just
+                    // the expected duration of the next display refresh.
+                    let elapsed = link.elapsedDuration
+                    link.elapsedDuration = 0
+                    link.update(CGFloat(elapsed))
                 }
             } else {
                 if removeIndices == nil {

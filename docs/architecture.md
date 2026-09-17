@@ -57,8 +57,10 @@ Scene disconnection stops startup and the session. Backgrounding does not.
 
 `AppTabBarController` directly retains five hosting controllers. Feature screens use
 SwiftUI `NavigationStack`; there are no surrounding UIKit navigation controllers.
-The tab controller coalesces selection during cross-dissolves and owns the floating
-UIKit bar. Each child reserves bar clearance through `additionalSafeAreaInsets`.
+The tab controller uses a 140 ms cross-dissolve after settling the incoming screen's
+layout. Taps during a transition coalesce to the latest destination and apply once
+UIKit finishes the active transition. It owns the floating UIKit bar. Each child
+reserves bar clearance through `additionalSafeAreaInsets`.
 The bar itself is anchored to the tab container's safe area. Change the `MainNavigation`
 type alias to choose Original or Telegram; Telegram supplies long-press shortcuts.
 
