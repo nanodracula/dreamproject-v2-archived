@@ -54,14 +54,13 @@ struct AddCardView: View {
         // appearance callbacks, verified under its custom transition.
         .onDisappear {
             isInputFocused = false
-            // A large sheet may cover its presenter; presenting the picker is not leaving the flow.
-            if model.pickerSession == nil { model.cancelPendingSubmission() }
+            model.cancelPendingSubmission()
         }
-        .sheet(item: $model.pickerSession) { session in
-            TranslationOptionsSheet(
-                session: session,
+        .background {
+            TranslationOptionsDrawer(
+                session: $model.pickerSession,
                 pronunciation: pronunciation
-            ) { variant in
+            ) { session, variant in
                 model.confirm(variant, in: session)
             }
         }

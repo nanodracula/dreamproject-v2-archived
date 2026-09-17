@@ -70,5 +70,16 @@ roots supply the settings model through the SwiftUI environment. Debug previews 
 in-memory infrastructure and explicitly start and stop their own sessions.
 
 Add Card keeps its request task, cancellation, draft, validation, and picker state in
-SwiftUI. The picker measures its own content for its detent; the system constrains
-its height to the available presentation space.
+SwiftUI. A `UIViewControllerRepresentable` presents the picker with a custom UIKit
+presentation controller. Its frame spans the container width; a separate backdrop
+dims the unchanged presenting screen. The drawer slides vertically over 140 ms;
+drag dismissal preserves the release velocity. Initial content measurement happens
+before presentation, outside the transition animator.
+SwiftUI supplies the header and options and reports their natural height; UIKit
+caps the drawer below the top safe area and includes bottom safe-area clearance.
+Long options scroll and hand downward drags to the drawer at the top of the list.
+At handoff the scroll view stops its pan, and the drawer owns movement until release;
+the two gesture handlers never write scroll offsets throughout the same drag.
+The header supports resisted upward stretching without horizontal scaling; released
+drags spring back with their velocity, while a downward flick dismisses. Drag updates
+change only UIKit transforms and backdrop opacity, without rebuilding SwiftUI content.

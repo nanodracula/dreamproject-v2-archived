@@ -1,15 +1,16 @@
 import SwiftUI
 
-/// The phrasing picker: a fixed header over scrolling option cards, sized to
-/// its content up to most of the screen. Selection is local; the chosen
-/// variant leaves through `onConfirm`. Pronunciation belongs to this sheet
-/// through one key and stops when the sheet goes.
+/// SwiftUI content for the UIKit drawer. Reports its natural content height;
+/// UIKit owns the frame, backdrop, transitions, and drag-to-dismiss gesture.
 struct TranslationOptionsSheet: View {
     let session: TitlePickerSession
     let pronunciation: Pronunciation
     let onConfirm: (CardTitleVariant) -> Void
 
-    @Environment(\.dismiss) private var dismiss
+    let onDismiss: () -> Void
+    let onSizeChange: (CGFloat, CGFloat) -> Void
+    // Used only by the hosting controller's synchronous pre-presentation fit.
+    var measuresContent = false
     @Environment(\.displayScale) private var displayScale
     @State private var selectedIndex: Int
     @State private var pronunciationKey = Pronunciation.Key()
@@ -20,49 +21,74 @@ struct TranslationOptionsSheet: View {
     init(
         session: TitlePickerSession,
         pronunciation: Pronunciation,
-        onConfirm: @escaping (CardTitleVariant) -> Void
+        onConfirm: @escaping (CardTitleVariant) -> Void,
+        onDismiss: @escaping () -> Void,
+        onSizeChange: @escaping (CGFloat, CGFloat) -> Void
     ) {
         self.session = session
         self.pronunciation = pronunciation
         self.onConfirm = onConfirm
+        self.onDismiss = onDismiss
+        self.onSizeChange = onSizeChange
         _selectedIndex = State(initialValue: session.variants.firstIndex { $0.recommended } ?? 0)
     }
 
     var body: some View {
         VStack(spacing: 0) {
-            header
-                .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { headerHeight = $0 }
-            ScrollView {
-                VStack(spacing: 12) {
-                    ForEach(session.variants.indices, id: \.self) { index in
-                        OptionCard(
-                            variant: session.variants[index],
-                            language: session.learningLanguage,
-                            isSelected: index == selectedIndex,
-                            hairline: 1 / displayScale,
-                            onSelect: { selectedIndex = index },
-                            onPronounce: { pronounce(session.variants[index]) }
-                        )
-                    }
-                }
-                .padding(.horizontal, 20)
-                .padding(.top, 16)
-                .padding(.bottom, 24)
-                .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { listHeight = $0 }
+            VStack(spacing: 0) {
+                Capsule()
+                    .fill(.white.opacity(0.3))
+                    .frame(width: 36, height: 5)
+                    .frame(maxWidth: .infinity)
+                    .padding(.top, 8)
+                    .padding(.bottom, 4)
+                header
+            }
+            .fixedSize(horizontal: false, vertical: true)
+            .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { headerHeight = $0 }
+
+            if measuresContent {
+                options
+            } else {
+                ScrollView { options }
             }
         }
-        .presentationBackground(AddCardColors.background)
-        .presentationDragIndicator(.visible)
-        .presentationDetents([detent])
+        .frame(maxWidth: .infinity)
         .sensoryFeedback(.impact(weight: .light), trigger: selectedIndex)
+        .onChange(of: headerHeight) { reportSize() }
+        .onChange(of: listHeight) { reportSize() }
         .onDisappear { pronunciation.stop(pronunciationKey) }
+    }
+
+    private var options: some View {
+        VStack(spacing: 12) {
+            ForEach(session.variants.indices, id: \.self) { index in
+                OptionCard(
+                    variant: session.variants[index],
+                    language: session.learningLanguage,
+                    isSelected: index == selectedIndex,
+                    hairline: 1 / displayScale,
+                    onSelect: { selectedIndex = index },
+                    onPronounce: { pronounce(session.variants[index]) }
+                )
+            }
+        }
+        .padding(.horizontal, 20)
+        .padding(.top, 16)
+        .padding(.bottom, 24)
+        .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { listHeight = $0 }
+    }
+
+    private func reportSize() {
+        guard headerHeight > 0, listHeight > 0 else { return }
+        onSizeChange(headerHeight + listHeight, headerHeight)
     }
 
     private var header: some View {
         HStack(spacing: 12) {
             HeaderButton(symbol: "xmark", weight: .regular, tint: AddCardColors.optionSurface) {
                 pronunciation.stop(pronunciationKey)
-                dismiss()
+                onDismiss()
             }
             .accessibilityLabel(Text("pickerClose", tableName: "AddCard"))
 
@@ -76,7 +102,7 @@ struct TranslationOptionsSheet: View {
             HeaderButton(symbol: "checkmark", weight: .semibold, tint: AddCardColors.primary) {
                 pronunciation.stop(pronunciationKey)
                 onConfirm(session.variants[selectedIndex])
-                dismiss()
+                onDismiss()
             }
             .accessibilityLabel(Text("pickerConfirm", tableName: "AddCard"))
         }
@@ -88,13 +114,6 @@ struct TranslationOptionsSheet: View {
                 .fill(AddCardColors.optionBorder)
                 .frame(height: 1 / displayScale)
         }
-    }
-
-    /// Measure our own content; UIKit constrains the detent to the available
-    /// presentation space and adds the bottom safe area.
-    private var detent: PresentationDetent {
-        guard headerHeight > 0, listHeight > 0 else { return .medium }
-        return .height(headerHeight + listHeight)
     }
 
     /// Suggestions have no recording yet, so device speech reads the title
@@ -281,8 +300,8 @@ private struct SheetPreview: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .background(AddCardColors.background)
             .onAppear { presented = session }
-            .sheet(item: $presented) { session in
-                TranslationOptionsSheet(session: session, pronunciation: .preview()) { variant in
+            .background {
+                TranslationOptionsDrawer(session: $presented, pronunciation: .preview()) { _, variant in
                     print("[add-card] chosen title", variant.title)
                 }
             }
