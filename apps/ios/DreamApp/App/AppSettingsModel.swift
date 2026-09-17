@@ -13,12 +13,20 @@ final class AppSettingsModel {
     /// The last committed snapshot; `nil` until the first load.
     private(set) var snapshot: SettingsSnapshot?
     private(set) var isSaving = false
-    /// True after the current observation has delivered a snapshot.
-    private(set) var isObservationReady = false
-    /// Why observation stopped; `nil` while it is healthy.
-    private(set) var loadError: (any Error)?
-    /// Changes on retry. Key the `.task` that runs `observe()` on it.
-    private(set) var observationRun = 0
+    enum ObservationStatus {
+        case stopped
+        case starting
+        case observing
+        case failed(any Error)
+    }
+
+    private(set) var observationStatus: ObservationStatus = .stopped
+
+    var loadError: (any Error)? {
+        if case .failed(let error) = observationStatus { return error }
+        return nil
+    }
+
     /// The last failed save. Cleared when its alert is dismissed.
     var saveError: String?
 
@@ -34,7 +42,10 @@ final class AppSettingsModel {
 
     /// Editing waits for the first load and pauses during a save or a broken
     /// observation, which would hide the committed result.
-    var canEdit: Bool { isObservationReady && loadError == nil && !isSaving }
+    var canEdit: Bool {
+        if case .observing = observationStatus { return !isSaving }
+        return false
+    }
 
     var nativeLanguageCode: String? { snapshot?.account.nativeLanguage }
 
@@ -65,24 +76,13 @@ final class AppSettingsModel {
 
     // MARK: - Observation
 
-    /// Loads the saved values and keeps them current until cancelled.
-    func observe() async {
-        isObservationReady = false
-        defer { isObservationReady = false }
-        loadError = nil
-        do {
-            for try await snapshot in repository.observeSnapshot() {
-                self.snapshot = snapshot
-                isObservationReady = true
-            }
-        } catch {
-            guard !Task.isCancelled else { return }
-            loadError = error
-        }
+    func apply(_ snapshot: SettingsSnapshot) {
+        self.snapshot = snapshot
+        observationStatus = .observing
     }
 
-    func retryObservation() {
-        observationRun += 1
+    func setObservationStatus(_ status: ObservationStatus) {
+        observationStatus = status
     }
 
     // MARK: - Editing

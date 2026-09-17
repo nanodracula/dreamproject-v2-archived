@@ -97,8 +97,7 @@ public final class SharedDisplayLinkDriver {
     private var isUpdateRequested: Bool = false
     
     private init() {
-        // Telegram's AppDelegate forwards didBecomeActive to this driver. Keep
-        // that integration here because DreamApp has a SwiftUI app lifecycle.
+        // Observe process activity so both native floating bars share this driver.
         let _ = NotificationCenter.default.addObserver(forName: UIApplication.didBecomeActiveNotification, object: nil, queue: .main, using: { [weak self] _ in
             MainActor.assumeIsolated {
                 self?.updateForegroundState(true)

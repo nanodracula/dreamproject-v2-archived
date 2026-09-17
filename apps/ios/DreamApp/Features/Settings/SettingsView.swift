@@ -16,7 +16,8 @@ enum SettingsRoute: Hashable {
 /// The settings index: a native inset-grouped list. In dark mode the system
 /// grouped palette matches the old app's values exactly, so no colors are set.
 struct SettingsView: View {
-    @Environment(AppDependencies.self) private var dependencies
+    let database: AppDatabase
+    let retryObservation: () -> Void
     @Environment(AppSettingsModel.self) private var settings
 
     private var canAdd: Bool { settings.enrolledLanguages.count < LearningLanguage.all.count }
@@ -27,13 +28,17 @@ struct SettingsView: View {
                 Section {
                     Text(loadError.localizedDescription)
                     Button {
-                        settings.retryObservation()
+                        retryObservation()
                     } label: {
                         Text("loadErrorRetry", tableName: "Settings")
                     }
                 } header: {
                     Text("loadErrorTitle", tableName: "Settings")
                 }
+            }
+
+            if case .starting = settings.observationStatus, settings.isLoaded {
+                Section { ProgressView().frame(maxWidth: .infinity) }
             }
 
             Section {
@@ -114,7 +119,7 @@ struct SettingsView: View {
             case .learning(let languageCode): LearningSettingsView(languageCode: languageCode)
             case .languages: LanguagesSettingsView()
             case .sync: SyncSettingsView()
-            case .dev: DevView(database: dependencies.database)
+            case .dev: DevView(database: database)
             case .terminal: TerminalView()
             }
         }
@@ -207,10 +212,24 @@ private struct SettingsRowLabelStyle: LabelStyle {
     }
 }
 
+#if DEBUG
 #Preview {
-    NavigationStack {
-        SettingsView()
-    }
-    .previewDependencies()
-    .preferredColorScheme(.dark)
+    SettingsPreview()
 }
+
+private struct SettingsPreview: View {
+    @State private var preview = PreviewSupport()
+
+    var body: some View {
+        NavigationStack {
+            SettingsView(database: preview.dependencies.database, retryObservation: {
+                preview.session.restartObservation()
+            })
+        }
+        .environment(preview.session.settings)
+        .task { try? await preview.session.start() }
+        .onDisappear { preview.session.stop() }
+        .preferredColorScheme(.dark)
+    }
+}
+#endif

@@ -23,6 +23,7 @@ struct GeneralSettingsView: View {
     }
 }
 
+#if DEBUG
 #Preview {
     NavigationStack {
         GeneralSettingsView()
@@ -30,3 +31,4 @@ struct GeneralSettingsView: View {
     .previewDependencies()
     .preferredColorScheme(.dark)
 }
+#endif

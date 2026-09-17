@@ -7,9 +7,6 @@ import SwiftUI
 struct TranslationOptionsSheet: View {
     let session: TitlePickerSession
     let pronunciation: Pronunciation
-    /// The tallest the sheet may grow; the presenting view derives it from
-    /// its own space.
-    let maxHeight: CGFloat
     let onConfirm: (CardTitleVariant) -> Void
 
     @Environment(\.dismiss) private var dismiss
@@ -23,12 +20,10 @@ struct TranslationOptionsSheet: View {
     init(
         session: TitlePickerSession,
         pronunciation: Pronunciation,
-        maxHeight: CGFloat,
         onConfirm: @escaping (CardTitleVariant) -> Void
     ) {
         self.session = session
         self.pronunciation = pronunciation
-        self.maxHeight = maxHeight
         self.onConfirm = onConfirm
         _selectedIndex = State(initialValue: session.variants.firstIndex { $0.recommended } ?? 0)
     }
@@ -95,12 +90,11 @@ struct TranslationOptionsSheet: View {
         }
     }
 
-    /// Header plus measured list, capped by the presenting view. The system
-    /// adds the bottom safe area itself. Use the native medium detent until
-    /// both the header and the list have been measured.
+    /// Measure our own content; UIKit constrains the detent to the available
+    /// presentation space and adds the bottom safe area.
     private var detent: PresentationDetent {
         guard headerHeight > 0, listHeight > 0 else { return .medium }
-        return .height(min(headerHeight + listHeight, maxHeight))
+        return .height(headerHeight + listHeight)
     }
 
     /// Suggestions have no recording yet, so device speech reads the title
@@ -288,7 +282,7 @@ private struct SheetPreview: View {
             .background(AddCardColors.background)
             .onAppear { presented = session }
             .sheet(item: $presented) { session in
-                TranslationOptionsSheet(session: session, pronunciation: .preview(), maxHeight: 700) { variant in
+                TranslationOptionsSheet(session: session, pronunciation: .preview()) { variant in
                     print("[add-card] chosen title", variant.title)
                 }
             }

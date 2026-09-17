@@ -121,6 +121,7 @@ extension LearningLanguage {
     }
 }
 
+#if DEBUG
 #Preview {
     NavigationStack {
         LearningSettingsView(languageCode: "ja")
@@ -128,3 +129,4 @@ extension LearningLanguage {
     .previewDependencies()
     .preferredColorScheme(.dark)
 }
+#endif

@@ -44,6 +44,7 @@ struct LanguagesSettingsView: View {
     }
 }
 
+#if DEBUG
 #Preview {
     NavigationStack {
         LanguagesSettingsView()
@@ -51,3 +52,4 @@ struct LanguagesSettingsView: View {
     .previewDependencies()
     .preferredColorScheme(.dark)
 }
+#endif

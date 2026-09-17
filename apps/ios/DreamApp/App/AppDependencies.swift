@@ -1,16 +1,11 @@
 import Foundation
 import Supabase
 
-/// The composition root. Owns the database, shared repositories, and platform
-/// services. Features build their own view models and queries from these.
-@MainActor @Observable
+/// Process-wide infrastructure, retained by AppDelegate.
+@MainActor
 final class AppDependencies {
     let database: AppDatabase
     let deviceSettings: DeviceSettings
-    let settingsRepository: SettingsRepository
-    /// Account settings of the current user, injected into the SwiftUI
-    /// environment on its own.
-    let settings: AppSettingsModel
     /// The shared Supabase client. Feature request clients, such as
     /// `CardTitleGeneration`, are built from it.
     let supabase: SupabaseClient
@@ -27,9 +22,6 @@ final class AppDependencies {
         self.database = database
         self.deviceSettings = deviceSettings
         self.supabase = supabase
-        // The guest user until authentication exists.
-        settingsRepository = SettingsRepository(writer: database.writer, userID: AppDatabase.guestUserID)
-        settings = AppSettingsModel(repository: settingsRepository)
         supabaseSession = SupabaseSession(auth: supabase.auth)
         mediaUploader = MediaUploader(supabase: supabase, session: supabaseSession)
         mediaCache = MediaCache(supabase: supabase)

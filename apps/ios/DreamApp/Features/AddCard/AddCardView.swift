@@ -8,24 +8,13 @@ struct AddCardView: View {
     private let pronunciation: Pronunciation
     @State private var model: AddCardModel
     @FocusState private var isInputFocused: Bool
-    /// The space a sheet can take: this view plus the bottom safe area.
-    @State private var presentationHeight: CGFloat = 0
     // Design point sizes at the standard text size, following Dynamic Type.
     @ScaledMetric private var titleSize = 17.0
     @ScaledMetric private var inputSize = 18.0
 
-    init(dependencies: AppDependencies, onSelection: @escaping (AddCardSelection) -> Void) {
-        self.init(
-            dependencies: dependencies,
-            generation: CardTitleGeneration(supabase: dependencies.supabase),
-            pronunciation: dependencies.pronunciation,
-            onSelection: onSelection
-        )
-    }
-
     /// `draft` pre-fills the input; previews use it.
     init(
-        dependencies: AppDependencies,
+        settings: AppSettingsModel,
         generation: any CardTitleGenerating,
         pronunciation: Pronunciation,
         draft: String = "",
@@ -33,7 +22,7 @@ struct AddCardView: View {
     ) {
         self.pronunciation = pronunciation
         let model = AddCardModel(
-            settings: dependencies.settings,
+            settings: settings,
             generation: generation,
             onSelection: onSelection
         )
@@ -55,9 +44,6 @@ struct AddCardView: View {
             }
             .scrollDismissesKeyboard(.interactively)
         }
-        .onGeometryChange(for: CGFloat.self) { proxy in
-            proxy.size.height + proxy.safeAreaInsets.bottom
-        } action: { presentationHeight = $0 }
         .background(AddCardColors.background)
         .toolbarVisibility(.hidden, for: .navigationBar)
         .task(id: model.pendingSubmission) {
@@ -68,13 +54,13 @@ struct AddCardView: View {
         // appearance callbacks, verified under its custom transition.
         .onDisappear {
             isInputFocused = false
-            model.cancelPendingSubmission()
+            // A large sheet may cover its presenter; presenting the picker is not leaving the flow.
+            if model.pickerSession == nil { model.cancelPendingSubmission() }
         }
         .sheet(item: $model.pickerSession) { session in
             TranslationOptionsSheet(
                 session: session,
-                pronunciation: pronunciation,
-                maxHeight: presentationHeight * 0.9
+                pronunciation: pronunciation
             ) { variant in
                 model.confirm(variant, in: session)
             }
@@ -295,13 +281,13 @@ private let previewInput = "I'd like to try this one, please."
 private struct AddCardPreview: View {
     var input = ""
     let generation: any CardTitleGenerating
-    @State private var dependencies = AppDependencies(database: try! AppDatabase.openInMemory())
+    @State private var preview = PreviewSupport()
     @State private var pronunciation = Pronunciation.preview()
 
     var body: some View {
         NavigationStack {
             AddCardView(
-                dependencies: dependencies,
+                settings: preview.session.settings,
                 generation: generation,
                 pronunciation: pronunciation,
                 draft: input
@@ -309,11 +295,9 @@ private struct AddCardPreview: View {
                 print("[add-card] chosen title", selection.variant.title)
             }
         }
-        .environment(dependencies)
-        .environment(dependencies.settings)
-        .task(id: dependencies.settings.observationRun) {
-            await dependencies.settings.observe()
-        }
+        .environment(preview.session.settings)
+        .task { try? await preview.session.start() }
+        .onDisappear { preview.session.stop() }
     }
 }
 #endif
