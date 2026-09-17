@@ -7,20 +7,23 @@ final class MainNavigationOriginal: UIView, MainNavigationBar {
     private let glass: UIVisualEffectView
     private let pill = UIView()
     private var buttons: [UIButton] = []
+    private var slotHighlights: [UIView] = []
     private var glyphs: [(idle: UIImageView, active: UIImageView)] = []
     private var leading = EdgeSpring(value: 0)
     private var trailing = EdgeSpring(value: 1)
     private var displayLink: SharedDisplayLinkDriver.Link?
     private var selectedIndex = 0
+    private var reduceMotion = UIAccessibility.isReduceMotionEnabled
 
     init(items: [MainNavigationItem]) {
         let effect = UIGlassEffect(style: .regular)
-        effect.isInteractive = true
+        effect.isInteractive = !UIAccessibility.isReduceMotionEnabled
         glass = UIVisualEffectView(effect: effect)
         super.init(frame: .zero)
         addSubview(glass)
-        glass.clipsToBounds = true
+        glass.cornerConfiguration = .capsule()
         pill.backgroundColor = UIColor.white.withAlphaComponent(0.14)
+        pill.cornerConfiguration = .capsule()
         pill.isUserInteractionEnabled = false
         glass.contentView.addSubview(pill)
         let configuration = UIImage.SymbolConfiguration(pointSize: 23, weight: .regular)
@@ -28,6 +31,12 @@ final class MainNavigationOriginal: UIView, MainNavigationBar {
             let button = UIButton(type: .custom)
             button.accessibilityLabel = item.title
             button.addAction(UIAction { [weak self] _ in self?.selectionChanged?(index) }, for: .touchUpInside)
+            let highlight = UIView()
+            highlight.backgroundColor = pill.backgroundColor
+            highlight.cornerConfiguration = .capsule()
+            highlight.isUserInteractionEnabled = false
+            highlight.alpha = 0
+            button.addSubview(highlight)
             let idle = UIImageView(image: UIImage(systemName: item.symbol, withConfiguration: configuration))
             let active = UIImageView(image: UIImage(systemName: item.selectedSymbol, withConfiguration: configuration))
             idle.tintColor = UIColor(red: 176 / 255, green: 180 / 255, blue: 186 / 255, alpha: 1)
@@ -39,8 +48,13 @@ final class MainNavigationOriginal: UIView, MainNavigationBar {
             }
             glass.contentView.addSubview(button)
             buttons.append(button)
+            slotHighlights.append(highlight)
             glyphs.append((idle, active))
         }
+        NotificationCenter.default.addObserver(
+            self, selector: #selector(reduceMotionDidChange),
+            name: UIAccessibility.reduceMotionStatusDidChangeNotification, object: nil
+        )
     }
 
     required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
@@ -49,6 +63,7 @@ final class MainNavigationOriginal: UIView, MainNavigationBar {
 
     override func didMoveToWindow() {
         super.didMoveToWindow()
+        reduceMotionDidChange()
         if window == nil {
             displayLink?.isPaused = true
         } else if !leading.isSettled || !trailing.isSettled {
@@ -59,11 +74,11 @@ final class MainNavigationOriginal: UIView, MainNavigationBar {
     override func layoutSubviews() {
         super.layoutSubviews()
         glass.frame = bounds
-        glass.layer.cornerRadius = bounds.height / 2
         let content = bounds.insetBy(dx: 7, dy: 7)
         let width = content.width / CGFloat(max(buttons.count, 1))
         for (index, button) in buttons.enumerated() {
             button.frame = CGRect(x: content.minX + CGFloat(index) * width, y: content.minY, width: width, height: content.height)
+            slotHighlights[index].frame = button.bounds
             let frame = CGRect(x: (width - 23) / 2, y: (content.height - 23) / 2, width: 23, height: 23)
             glyphs[index].idle.frame = frame
             glyphs[index].active.frame = frame
@@ -77,14 +92,33 @@ final class MainNavigationOriginal: UIView, MainNavigationBar {
         let forward = CGFloat(index) > (leading.value + trailing.value) / 2 - 0.5
         leading.retarget(CGFloat(index), fast: !forward)
         trailing.retarget(CGFloat(index + 1), fast: forward)
-        if !animated || UIAccessibility.isReduceMotionEnabled {
+        if !animated || reduceMotion {
             leading.finish()
             trailing.finish()
             displayLink?.isPaused = true
         } else {
             animate()
         }
-        updatePresentation()
+        if animated && reduceMotion {
+            UIView.animate(withDuration: 0.1, delay: 0, options: [.curveEaseOut, .beginFromCurrentState, .allowUserInteraction]) {
+                self.updatePresentation()
+            }
+        } else {
+            updatePresentation()
+        }
+    }
+
+    @objc private func reduceMotionDidChange() {
+        let enabled = UIAccessibility.isReduceMotionEnabled
+        guard reduceMotion != enabled else { return }
+        reduceMotion = enabled
+        let effect = UIGlassEffect(style: .regular)
+        effect.isInteractive = !enabled
+        glass.effect = effect
+        leading.finish()
+        trailing.finish()
+        displayLink?.isPaused = true
+        UIView.performWithoutAnimation { updatePresentation() }
     }
 
     private func animate() {
@@ -115,12 +149,14 @@ final class MainNavigationOriginal: UIView, MainNavigationBar {
         let center = (leading.value + trailing.value) / 2
         let pillWidth = max(0.01, trailing.value - leading.value) * width
         pill.frame = CGRect(x: content.minX + center * width - pillWidth / 2, y: content.minY, width: pillWidth, height: content.height)
-        pill.layer.cornerRadius = content.height / 2
+        pill.isHidden = reduceMotion
         for (index, glyph) in glyphs.enumerated() {
-            let fill = max(0, 1 - abs(center - 0.5 - CGFloat(index)))
+            let isSelected = index == selectedIndex
+            let fill = reduceMotion ? (isSelected ? CGFloat(1) : 0) : max(0, 1 - abs(center - 0.5 - CGFloat(index)))
+            slotHighlights[index].alpha = reduceMotion && isSelected ? 1 : 0
             glyph.active.alpha = fill
             glyph.idle.alpha = 1 - fill
-            buttons[index].accessibilityTraits = index == selectedIndex ? [.button, .selected] : [.button]
+            buttons[index].accessibilityTraits = isSelected ? [.button, .selected] : [.button]
         }
     }
 }
