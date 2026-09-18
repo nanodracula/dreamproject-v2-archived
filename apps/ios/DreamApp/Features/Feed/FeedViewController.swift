@@ -20,11 +20,12 @@ final class FeedViewController: UIViewController, UICollectionViewDelegate, UICo
     private var appliedEntryIDs: [Int] = []
     private var presentedError: String?
 
-    init(database: AppDatabase, settings: AppSettingsModel, pronunciation: Pronunciation,
-         mediaCache: MediaCache, onBack: @escaping () -> Void) {
+    init(database: AppDatabase, settings: AppSettingsModel, deviceSettings: DeviceSettings,
+         pronunciation: Pronunciation, mediaCache: MediaCache, onBack: @escaping () -> Void) {
         model = FeedModel(
             repository: FeedRepository(writer: database.writer),
             settings: settings,
+            deviceSettings: deviceSettings,
             pronunciation: pronunciation
         )
         self.pronunciation = pronunciation

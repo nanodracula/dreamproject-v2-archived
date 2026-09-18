@@ -44,6 +44,7 @@ final class AppTabBarController: UITabBarController, UITabBarControllerDelegate 
             FeedViewController(
                 database: dependencies.database,
                 settings: session.settings,
+                deviceSettings: dependencies.deviceSettings,
                 pronunciation: dependencies.pronunciation,
                 mediaCache: dependencies.mediaCache
             ) { [weak self] in

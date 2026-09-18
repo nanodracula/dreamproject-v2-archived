@@ -26,8 +26,10 @@ struct WordLookupSheet: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .background {
+            // A light blur under the tint, so the card shows through faintly
+            // as it did under the old sheet's half-intensity blur.
             ZStack {
-                Rectangle().fill(.thickMaterial)
+                Rectangle().fill(.ultraThinMaterial)
                 FeedColors.sheetSurface
             }
             .ignoresSafeArea()

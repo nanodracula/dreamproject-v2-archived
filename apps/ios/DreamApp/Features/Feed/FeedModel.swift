@@ -38,10 +38,11 @@ final class FeedModel {
     /// Index into `entries` of the card on screen; `nil` before the first
     /// card settles.
     private(set) var activeIndex: Int?
-    /// Reads each card aloud as it arrives. Session-only, like hands-free:
-    /// both switch off when the feed leaves the screen.
-    private(set) var isAutoplaying = false
-    /// Hands-free mode: read each card, then move on.
+    /// Reads each card aloud as it arrives. A device setting shared with the
+    /// Interface settings toggle, so it survives launches.
+    private(set) var isAutoplaying: Bool
+    /// Hands-free mode: read each card, then move on. Session-only: it
+    /// switches off when the feed leaves the screen.
     private(set) var isAutoAdvancing = false
     private(set) var lookup: Lookup?
     /// The last failed favorite write. Cleared when its alert is dismissed.
@@ -52,6 +53,7 @@ final class FeedModel {
 
     @ObservationIgnored private let repository: FeedRepository
     @ObservationIgnored private let settings: AppSettingsModel
+    @ObservationIgnored private let deviceSettings: DeviceSettings
     @ObservationIgnored private let pronunciation: Pronunciation
     @ObservationIgnored private var plan: FeedPagePlan?
     @ObservationIgnored private var nextSerial = 0
@@ -61,10 +63,13 @@ final class FeedModel {
     @ObservationIgnored private var playback: Task<Void, Never>?
     @ObservationIgnored private var favoritesObservation: Task<Void, Never>?
 
-    init(repository: FeedRepository, settings: AppSettingsModel, pronunciation: Pronunciation) {
+    init(repository: FeedRepository, settings: AppSettingsModel,
+         deviceSettings: DeviceSettings, pronunciation: Pronunciation) {
         self.repository = repository
         self.settings = settings
+        self.deviceSettings = deviceSettings
         self.pronunciation = pronunciation
+        isAutoplaying = deviceSettings.autoplayPronunciation
     }
 
     isolated deinit {
@@ -197,15 +202,16 @@ final class FeedModel {
     }
 
     /// The screen appeared or went away. Playback belongs to a visible feed,
-    /// and leaving it switches autoplay and hands-free off.
+    /// and leaving it switches hands-free off.
     func setVisible(_ visible: Bool) {
         guard visible != isVisible else { return }
         isVisible = visible
         if visible {
+            // The Settings tab may have flipped the toggle while the feed was away.
+            isAutoplaying = deviceSettings.autoplayPronunciation
             startSequence()
         } else {
             interrupt()
-            isAutoplaying = false
             isAutoAdvancing = false
         }
     }
@@ -268,6 +274,7 @@ final class FeedModel {
     /// Muting stops the current sound; unmuting reads the active card.
     func toggleAutoplay() {
         isAutoplaying.toggle()
+        deviceSettings.autoplayPronunciation = isAutoplaying
         if isAutoplaying {
             startSequence()
         } else {
