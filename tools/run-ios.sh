@@ -55,7 +55,7 @@ case "$action" in
     ;;
 
   run-device)
-    device="${IOS_DEVICE_NAME:-My iPhone Pro (Vlad)}"
+    device="${IOS_DEVICE_NAME:-iPhone Pro (Vlad)}"
     derived_data="$HOME/Library/Developer/Xcode/DerivedData/DreamApp-Device-$configuration"
 
     xcode -destination "platform=iOS,name=$device" \
