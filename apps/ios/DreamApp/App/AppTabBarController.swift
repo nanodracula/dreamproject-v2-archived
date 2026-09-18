@@ -41,7 +41,14 @@ final class AppTabBarController: UITabBarController, UITabBarControllerDelegate 
         navigationBar.selectionChanged = { [weak self] index in self?.select(index) }
         viewControllers = [
             UIHostingController(rootView: NavigationStack { PlaceholderView(title: "Dictionary", symbol: "books.vertical.fill") }),
-            UIHostingController(rootView: NavigationStack { PlaceholderView(title: "Feed", symbol: "rectangle.stack.fill") }),
+            FeedViewController(
+                database: dependencies.database,
+                settings: session.settings,
+                pronunciation: dependencies.pronunciation,
+                mediaCache: dependencies.mediaCache
+            ) { [weak self] in
+                self?.select(Destination.dictionary.rawValue)
+            },
             UIHostingController(rootView: NavigationStack {
                 AddCardView(settings: session.settings,
                             generation: CardTitleGeneration(supabase: dependencies.supabase),

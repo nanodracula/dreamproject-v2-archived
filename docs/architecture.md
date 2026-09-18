@@ -42,44 +42,6 @@ Features may use shared layers but never depend on each other. Shared layers nev
 - Prefer concrete types and direct calls. Introduce protocols when consumers need interchangeable implementations or separation from external systems.
 - Keep contracts feature-local. Move them to Core when shared consumers or dependency direction require it.
 
-## App lifecycle and navigation
+---
 
-UIKit owns the scene, startup, and tab container. `AppDelegate` retains process-wide
-`AppDependencies`; `SceneDelegate` creates the dark window with `RootViewController`.
-The root contains exactly one loading, startup-error, or tab controller. Startup is
-ready after the session receives its first settings snapshot. Initial failures offer
-Retry; later observation failures keep the tabs and last committed settings visible.
-
-`AppSession` owns user-scoped repositories, `AppSettingsModel`, and settings observation.
-Stopping a session disables editing and cancels observation and any waiting startup.
-Restarting creates a new observation run; callbacks from obsolete runs are ignored.
-Scene disconnection stops startup and the session. Backgrounding does not.
-
-`AppTabBarController` directly retains five hosting controllers. Feature screens use
-SwiftUI `NavigationStack`; there are no surrounding UIKit navigation controllers.
-The tab controller uses a 140 ms cross-dissolve after settling the incoming screen's
-layout. Taps during a transition coalesce to the latest destination and apply once
-UIKit finishes the active transition. It owns the floating UIKit bar. Each child
-reserves bar clearance through `additionalSafeAreaInsets`.
-The bar itself is anchored to the tab container's safe area. Change the `MainNavigation`
-type alias to choose Original or Telegram; Telegram supplies long-press shortcuts.
-
-Settings owns its observable navigation path in `SettingsTabController`. An external
-shortcut replaces that path. Feature services use initializer injection, and hosting
-roots supply the settings model through the SwiftUI environment. Debug previews own
-in-memory infrastructure and explicitly start and stop their own sessions.
-
-Add Card keeps its request task, cancellation, draft, validation, and picker state in
-SwiftUI. A `UIViewControllerRepresentable` presents the picker with a custom UIKit
-presentation controller. Its frame spans the container width; a separate backdrop
-dims the unchanged presenting screen. The drawer slides vertically over 140 ms;
-drag dismissal preserves the release velocity. Initial content measurement happens
-before presentation, outside the transition animator.
-SwiftUI supplies the header and options and reports their natural height; UIKit
-caps the drawer below the top safe area and includes bottom safe-area clearance.
-Long options scroll and hand downward drags to the drawer at the top of the list.
-At handoff the scroll view stops its pan, and the drawer owns movement until release;
-the two gesture handlers never write scroll offsets throughout the same drag.
-The header supports resisted upward stretching without horizontal scaling; released
-drags spring back with their velocity, while a downward flick dismisses. Drag updates
-change only UIKit transforms and backdrop opacity, without rebuilding SwiftUI content.
+For agents: do not change this file.

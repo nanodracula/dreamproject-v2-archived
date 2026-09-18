@@ -7,18 +7,23 @@ extension LearningLanguage {
     /// device language, otherwise the system font. Interface text never
     /// uses it.
     func contentFont(size: CGFloat, weight: Font.Weight = .regular) -> Font {
+        Font(contentUIFont(size: size, weight: weight))
+    }
+
+    /// The UIKit form of `contentFont`, for line metrics and UIKit labels.
+    func contentUIFont(size: CGFloat, weight: Font.Weight = .regular) -> UIFont {
         guard let contentFontFamily else {
-            return .system(size: size, weight: weight)
+            return .systemFont(ofSize: size, weight: weight.uiWeight)
         }
         let descriptor = UIFontDescriptor(fontAttributes: [
             .family: contentFontFamily,
             .traits: [UIFontDescriptor.TraitKey.weight: weight.uiWeight],
         ])
-        return Font(UIFont(descriptor: descriptor, size: size))
+        return UIFont(descriptor: descriptor, size: size)
     }
 }
 
-private extension Font.Weight {
+extension Font.Weight {
     var uiWeight: UIFont.Weight {
         switch self {
         case .ultraLight: .ultraLight
